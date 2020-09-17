@@ -2,12 +2,84 @@
 //  ContentView.swift
 //  SemanticSegmentationCamera
 //
-//  Created by yogox on 2020/08/05.
+//  Created by yogox on 2020/09/12.
 //  Copyright © 2020 Yogox Galaxy. All rights reserved.
 //
 
 import SwiftUI
 import AVFoundation
+import CoreImage.CIFilterBuiltins
+
+
+class CIBlendWithMatte : CIFilter {
+    var inputImage: CIImage?
+    var backgroundImage: CIImage?
+    var color: CIVector?
+    
+    override var outputImage: CIImage? {
+        guard let inputImage = inputImage
+            , let backgroundImage = backgroundImage
+            , let color = color else { return nil}
+        
+        // 写真に合わせてMatte画像のスケールを拡大
+        let scaleFilter = CIFilter.lanczosScaleTransform()
+        let matteHeight = inputImage.extent.height
+        let photoHeight = backgroundImage.extent.height
+        scaleFilter.inputImage = inputImage
+        scaleFilter.scale = Float(photoHeight / matteHeight)
+        scaleFilter.aspectRatio = 1.0
+        
+        // マット画像の色・アルファを変更
+        let colorFilter = CIFilter.colorClamp()
+        colorFilter.inputImage = scaleFilter.outputImage!
+        colorFilter.maxComponents = color
+        
+        // Matte画像自身をマスクにして写真と合成
+        let blendFilter = CIFilter.blendWithMask()
+        blendFilter.inputImage = colorFilter.outputImage!
+        blendFilter.backgroundImage = backgroundImage
+        blendFilter.maskImage = scaleFilter.outputImage!
+        
+        return blendFilter.outputImage!
+    }
+}
+
+class CIBlendWIthSemanticSegmentationMatte : CIFilter {
+    var inputImage: CIImage?
+    var skinMatteImage: CIImage?
+    var hairMatteImage: CIImage?
+    var teethMatteImage: CIImage?
+    var alpha: CGFloat?
+    
+    override var outputImage: CIImage? {
+        guard let inputImage = inputImage
+            , let skinMatteImage = skinMatteImage
+            , let hairMatteImage = hairMatteImage
+            , let teethMatteImage = teethMatteImage
+            , let alpha = alpha else { return nil }
+        guard (0.0 ... 1.0).contains(alpha) else {return nil}
+        
+        // 肌のmatteを赤で合成
+        let skinFilter = CIBlendWithMatte()
+        skinFilter.inputImage = skinMatteImage
+        skinFilter.backgroundImage = inputImage
+        skinFilter.color = CIVector(x: 1, y: 0, z: 0, w: alpha)
+        
+        // 髮のmatteを緑で合成
+        let hairFilter = CIBlendWithMatte()
+        hairFilter.inputImage = hairMatteImage
+        hairFilter.backgroundImage = skinFilter.outputImage!
+        hairFilter.color = CIVector(x: 0, y: 1, z: 0, w: alpha)
+        
+        // 歯のmatteを青で合成
+        let teethFilter = CIBlendWithMatte()
+        teethFilter.inputImage = teethMatteImage
+        teethFilter.backgroundImage = hairFilter.outputImage!
+        teethFilter.color = CIVector(x: 0, y: 0, z: 1, w: alpha)
+        
+        return teethFilter.outputImage!
+    }
+}
 
 extension AVCaptureDevice.Position: CaseIterable {
     public static var allCases: [AVCaptureDevice.Position] {
@@ -21,6 +93,7 @@ extension AVCaptureDevice.Position: CaseIterable {
 typealias CameraPosition = AVCaptureDevice.Position
 
 class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, ObservableObject {
+    @Published var matteImage: UIImage?
     @Published var previewLayer:[CameraPosition:AVCaptureVideoPreviewLayer] = [:]
     private var captureDevice:AVCaptureDevice!
     private var captureSession:[CameraPosition:AVCaptureSession] = [:]
@@ -65,6 +138,12 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
         guard let photoOutput = dataOutput[cameraPosition] else { return }
         if captureSession.canAddOutput(photoOutput) {
             captureSession.addOutput(photoOutput)
+            
+            photoOutput.isDepthDataDeliveryEnabled = photoOutput.isDepthDataDeliverySupported
+            
+            // SemanticSegmentationMatteの設定
+            photoOutput.enabledSemanticSegmentationMatteTypes = photoOutput.availableSemanticSegmentationMatteTypes
+            
         }
         
         captureSession.commitConfiguration()
@@ -77,13 +156,47 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
     }
     
     func takePhoto() {
-        let settings = AVCapturePhotoSettings()
+        let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.hevc])
+        settings.isDepthDataDeliveryEnabled = true
+        
+        // SemanticSegmentationMatteの設定
+        settings.enabledSemanticSegmentationMatteTypes = dataOutput[currentCameraPosition]?.availableSemanticSegmentationMatteTypes ?? [AVSemanticSegmentationMatte.MatteType]()
+        
         dataOutput[currentCameraPosition]?.capturePhoto(with: settings, delegate: self)
     }
     
     // MARK: - AVCapturePhotoCaptureDelegate
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        // TODO: 写真撮影時処理
+        // 元写真を取得
+        guard let imageData = photo.fileDataRepresentation(), let ciImage = CIImage(data: imageData) else {return}
+        var photoImage = ciImage
+        
+        // skinのsemanticSegmentationMatteを取得
+        if let skinMatte = photo.semanticSegmentationMatte(for: .skin)
+            , let hairMatte = photo.semanticSegmentationMatte(for: .hair)
+            , let teethMatte = photo.semanticSegmentationMatte(for: .teeth)
+        {
+            // CIImageを作成s
+            let skinImage = CIImage(semanticSegmentationMatte: skinMatte, options: [.auxiliarySemanticSegmentationSkinMatte : true])
+            let hairImage = CIImage(semanticSegmentationMatte: hairMatte, options: [.auxiliarySemanticSegmentationHairMatte : true])
+            let teethImage = CIImage(semanticSegmentationMatte: teethMatte, options: [.auxiliarySemanticSegmentationTeethMatte : true])
+            
+            // 自作カスタムフィルターでmatteを着色して写真と合成
+            let matteFilter = CIBlendWIthSemanticSegmentationMatte()
+            matteFilter.inputImage = photoImage
+            matteFilter.skinMatteImage = skinImage
+            matteFilter.hairMatteImage = hairImage
+            matteFilter.teethMatteImage = teethImage
+            matteFilter.alpha = 0.7
+            photoImage = matteFilter.outputImage!
+        }
+        
+        // 画像の向きを決め打ち修正
+        photoImage = photoImage.oriented(.right)
+        // Imageクラスでも描画されるようにCGImage経由でUIImageに変換
+        let context = CIContext(options: nil)
+        let cgImage = context.createCGImage(photoImage, from: photoImage.extent)
+        self.matteImage = UIImage(cgImage: cgImage!)
     }
 }
 
@@ -94,7 +207,7 @@ struct CALayerView: UIViewControllerRepresentable {
         let viewController = UIViewController()
         
         caLayer.frame = viewController.view.layer.frame
-        caLayer.videoGravity = .resizeAspectFill
+        caLayer.videoGravity = .resizeAspect
         viewController.view.layer.addSublayer(caLayer)
         
         return viewController
@@ -104,67 +217,85 @@ struct CALayerView: UIViewControllerRepresentable {
     }
 }
 
+enum Views {
+    case transferPhoto
+}
+
 struct ContentView: View {
-    @ObservedObject var simpleCamera = SemanticSegmentationCamera()
+    @ObservedObject var segmentationCamera = SemanticSegmentationCamera()
     @State private var flipped = false
     @State private var angle:Double = 0
+    @State private var selection:Views? = .none
     
     var body: some View {
-        GeometryReader { geometry in
-            VStack {
-                Spacer()
-                
+        NavigationView {
+            GeometryReader { geometry in
                 VStack {
                     Spacer()
                     
-                    ZStack() {
-                        CALayerView(caLayer: self.simpleCamera.previewLayer[.front]!).opacity(self.flipped ? 1.0 : 0.0)
-                        CALayerView(caLayer: self.simpleCamera.previewLayer[.back]!).opacity(self.flipped ? 0.0 : 1.0)
+                    VStack {
+                        Spacer()
                         
+                        ZStack() {
+                            CALayerView(caLayer: self.segmentationCamera.previewLayer[.front]!).opacity(self.flipped ? 1.0 : 0.0)
+                            CALayerView(caLayer: self.segmentationCamera.previewLayer[.back]!).opacity(self.flipped ? 0.0 : 1.0)
+                            
+                        }
+                        .modifier(FlipEffect(flipped: self.$flipped, angle: self.angle, axis: (x: 0, y: 1)))
+                        Spacer()
                     }
-                    .modifier(FlipEffect(flipped: self.$flipped, angle: self.angle, axis: (x: 0, y: 1)))
-                    Spacer()
-                }
-                Spacer()
-                
-                HStack {
-                    Spacer()
                     Spacer()
                     
-                    Button(action: {
-                        self.simpleCamera.takePhoto()
-                    }) {
-                        Image(systemName: "camera.circle.fill")
-                            .renderingMode(.original)
-                            .resizable()
-                            .frame(width: 60, height: 60, alignment: .center)
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        self.simpleCamera.switchCamera()
-                        withAnimation(nil) {
-                            if self.angle >= 360 {
-                                self.angle = self.angle.truncatingRemainder(dividingBy: 360)
+                    HStack {
+                        Spacer()
+                        Spacer()
+                        
+                        Button(action: {
+                            self.segmentationCamera.takePhoto()
+                            self.selection = .transferPhoto
+                        }) {
+                            Image(systemName: "camera.circle.fill")
+                                .renderingMode(.original)
+                                .resizable()
+                                .frame(width: 60, height: 60, alignment: .center)
+                        }
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            self.segmentationCamera.switchCamera()
+                            withAnimation(nil) {
+                                if self.angle >= 360 {
+                                    self.angle = self.angle.truncatingRemainder(dividingBy: 360)
+                                }
                             }
+                            withAnimation(Animation.easeIn(duration: 1.0)) {
+                                self.angle += 180
+                            }
+                        }) {
+                            Image(systemName: "camera.rotate.fill")
+                                .renderingMode(.original)
+                                .resizable()
+                                .frame(width: 40, height: 40, alignment: .center)
                         }
-                        withAnimation(Animation.easeIn(duration: 1.0)) {
-                            self.angle += 180
-                        }
-                    }) {
-                        Image(systemName: "camera.rotate.fill")
-                            .renderingMode(.original)
-                            .resizable()
-                            .frame(width: 40, height: 40, alignment: .center)
                     }
+                    .padding(20)
+                    NavigationLink(destination: TransferPhotoView(segmentationCamera: self.segmentationCamera, selection: self.$selection
+                        ),
+                                   tag:Views.transferPhoto,
+                                   selection:self.$selection) {
+                                    EmptyView()
+                    }
+                    
+                    //                    Spacer()
+                    
                 }
-                .padding(20)
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .background(Color.gray)
+                .navigationBarTitle(/*@START_MENU_TOKEN@*/"Navigation Bar"/*@END_MENU_TOKEN@*/)
+                .navigationBarHidden(/*@START_MENU_TOKEN@*/true/*@END_MENU_TOKEN@*/)
                 
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .background(Color.gray)
-            
         }
     }
 }
@@ -198,6 +329,58 @@ struct FlipEffect: GeometryEffect {
         let affineTransform = ProjectionTransform(CGAffineTransform(translationX: size.width/2.0, y: size.height / 2.0))
         
         return ProjectionTransform(transform3d).concatenating(affineTransform)
+    }
+}
+
+struct photoView: View {
+    @ObservedObject var segmentationCamera: SemanticSegmentationCamera
+    
+    var body: some View {
+        VStack {
+            if self.segmentationCamera.matteImage != nil {
+                Image(uiImage: self.segmentationCamera.matteImage!)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Rectangle()
+                    .fill(Color.black)
+            }
+        }
+    }
+}
+
+struct TransferPhotoView: View {
+    @ObservedObject var segmentationCamera: SemanticSegmentationCamera
+    @Binding var selection:Views?
+    
+    var body: some View {
+        VStack {
+            Spacer()
+            
+            GeometryReader { geometry in
+                photoView(segmentationCamera: self.segmentationCamera)
+                    .frame(alignment: .center)
+                    .border(Color.white, width:1)
+                    .background(Color.black)
+            }
+            
+            Spacer()
+            
+            HStack {
+                Button(action: {
+                    self.segmentationCamera.matteImage = nil
+                    self.selection = .none
+                }) {
+                    Text("Back")
+                }
+                
+                Spacer()
+            }
+            .padding(20)
+        }
+        .background(/*@START_MENU_TOKEN@*/Color.black/*@END_MENU_TOKEN@*/)
+        .navigationBarTitle("Image")
+        .navigationBarHidden(/*@START_MENU_TOKEN@*/true/*@END_MENU_TOKEN@*/)
     }
 }
 
