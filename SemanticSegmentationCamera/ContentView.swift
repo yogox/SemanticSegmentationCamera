@@ -206,9 +206,14 @@ struct CALayerView: UIViewControllerRepresentable {
     func makeUIViewController(context: UIViewControllerRepresentableContext<CALayerView>) -> UIViewController {
         let viewController = UIViewController()
         
-        caLayer.frame = viewController.view.layer.frame
+        let width = viewController.view.frame.width
+        let height = viewController.view.frame.height
+        let previewHeight = width * 4 / 3
+        
         caLayer.videoGravity = .resizeAspect
         viewController.view.layer.addSublayer(caLayer)
+        caLayer.frame = viewController.view.frame
+        caLayer.position = CGPoint(x: width/2, y: previewHeight/2 + (height - previewHeight - 75)/3 )
         
         return viewController
     }
@@ -226,74 +231,86 @@ struct ContentView: View {
     @State private var flipped = false
     @State private var angle:Double = 0
     @State private var selection:Views? = .none
+    @State private var start = false
     
     var body: some View {
         NavigationView {
             GeometryReader { geometry in
-                VStack {
-                    Spacer()
+                ZStack {
+                    ZStack() {
+                        CALayerView(caLayer: self.segmentationCamera.previewLayer[.front]!).opacity(self.flipped ? 1.0 : 0.0)
+                        CALayerView(caLayer: self.segmentationCamera.previewLayer[.back]!).opacity(self.flipped ? 0.0 : 1.0)
+                    }
+                    .modifier(FlipEffect(flipped: self.$flipped, angle: self.angle, axis: (x: 0, y: 1)))
                     
                     VStack {
+                        
                         Spacer()
                         
-                        ZStack() {
-                            CALayerView(caLayer: self.segmentationCamera.previewLayer[.front]!).opacity(self.flipped ? 1.0 : 0.0)
-                            CALayerView(caLayer: self.segmentationCamera.previewLayer[.back]!).opacity(self.flipped ? 0.0 : 1.0)
+                        Color.clear
+                            .frame(width: geometry.size.width, height: geometry.size.width / 3 * 4)
+                        
+                        Spacer()
+                        
+                        HStack {
+                            Spacer()
                             
-                        }
-                        .modifier(FlipEffect(flipped: self.$flipped, angle: self.angle, axis: (x: 0, y: 1)))
-                        Spacer()
-                    }
-                    Spacer()
-                    
-                    HStack {
-                        Spacer()
-                        Spacer()
-                        
-                        Button(action: {
-                            self.segmentationCamera.takePhoto()
-                            self.selection = .transferPhoto
-                        }) {
-                            Image(systemName: "camera.circle.fill")
-                                .renderingMode(.original)
-                                .resizable()
-                                .frame(width: 60, height: 60, alignment: .center)
-                        }
-                        
-                        Spacer()
-                        
-                        Button(action: {
-                            self.segmentationCamera.switchCamera()
-                            withAnimation(nil) {
-                                if self.angle >= 360 {
-                                    self.angle = self.angle.truncatingRemainder(dividingBy: 360)
+                            Color.clear
+                                .frame(width: 40, height: 40)
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                self.segmentationCamera.takePhoto()
+                                self.selection = .transferPhoto
+                            }) {
+                                Image(systemName: "camera.circle.fill")
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 75, height: 75, alignment: .center)
+                                    .foregroundColor(Color.white)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                self.segmentationCamera.switchCamera()
+                                withAnimation(nil) {
+                                    if self.angle >= 360 {
+                                        self.angle = self.angle.truncatingRemainder(dividingBy: 360)
+                                    }
                                 }
+                                withAnimation(Animation.easeIn(duration: 0.5)) {
+                                    self.angle += 180
+                                }
+                            }) {
+                                Image(systemName: "camera.rotate")
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 40, height: 40, alignment: .center)
+                                    .foregroundColor(Color.white)
                             }
-                            withAnimation(Animation.easeIn(duration: 1.0)) {
-                                self.angle += 180
-                            }
-                        }) {
-                            Image(systemName: "camera.rotate.fill")
-                                .renderingMode(.original)
-                                .resizable()
-                                .frame(width: 40, height: 40, alignment: .center)
+                            
+                            Spacer()
                         }
+                        NavigationLink(destination: TransferPhotoView(segmentationCamera: self.segmentationCamera, selection: self.$selection
+                            ),
+                                       tag:Views.transferPhoto,
+                                       selection:self.$selection) {
+                                        EmptyView()
+                        }
+                        
+                        Spacer()
+                        
                     }
-                    .padding(20)
-                    NavigationLink(destination: TransferPhotoView(segmentationCamera: self.segmentationCamera, selection: self.$selection
-                        ),
-                                   tag:Views.transferPhoto,
-                                   selection:self.$selection) {
-                                    EmptyView()
-                    }
-                    
-                    //                    Spacer()
+                    .navigationBarTitle(/*@START_MENU_TOKEN@*/"Navigation Bar"/*@END_MENU_TOKEN@*/)
+                    .navigationBarHidden(/*@START_MENU_TOKEN@*/true/*@END_MENU_TOKEN@*/)
                     
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
-                .background(Color.gray)
-                .navigationBarTitle(/*@START_MENU_TOKEN@*/"Navigation Bar"/*@END_MENU_TOKEN@*/)
-                .navigationBarHidden(/*@START_MENU_TOKEN@*/true/*@END_MENU_TOKEN@*/)
+                .background(Color.black)
                 
             }
         }
