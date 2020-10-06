@@ -171,7 +171,7 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
         guard let imageData = photo.fileDataRepresentation(), let ciImage = CIImage(data: imageData) else {return}
         var photoImage = ciImage
         
-        // skinのsemanticSegmentationMatteを取得
+        // skin, hair, teethのsemanticSegmentationMatteを取得
         if let skinMatte = photo.semanticSegmentationMatte(for: .skin)
             , let hairMatte = photo.semanticSegmentationMatte(for: .hair)
             , let teethMatte = photo.semanticSegmentationMatte(for: .teeth)
