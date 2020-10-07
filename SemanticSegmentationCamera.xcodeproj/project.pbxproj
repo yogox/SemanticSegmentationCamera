@@ -13,8 +13,8 @@
 		C6CA50BE24DAE5C300A35D76 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C6CA50BD24DAE5C300A35D76 /* Assets.xcassets */; };
 		C6CA50C124DAE5C300A35D76 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C6CA50C024DAE5C300A35D76 /* Preview Assets.xcassets */; };
 		C6CA50C424DAE5C300A35D76 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = C6CA50C224DAE5C300A35D76 /* LaunchScreen.storyboard */; };
-		C6CA50CF24DAE5C400A35D76 /* SwitchingCameraPreviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CA50CE24DAE5C400A35D76 /* SwitchingCameraPreviewTests.swift */; };
-		C6CA50DA24DAE5C400A35D76 /* SwitchingCameraPreviewUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CA50D924DAE5C400A35D76 /* SwitchingCameraPreviewUITests.swift */; };
+		C6CA50CF24DAE5C400A35D76 /* SemanticSegmentationCameraTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CA50CE24DAE5C400A35D76 /* SemanticSegmentationCameraTests.swift */; };
+		C6CA50DA24DAE5C400A35D76 /* SemanticSegmentationCameraUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CA50D924DAE5C400A35D76 /* SemanticSegmentationCameraUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -44,10 +44,10 @@
 		C6CA50C324DAE5C300A35D76 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		C6CA50C524DAE5C300A35D76 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C6CA50CA24DAE5C300A35D76 /* SemanticSegmentationCameraTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SemanticSegmentationCameraTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		C6CA50CE24DAE5C400A35D76 /* SwitchingCameraPreviewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwitchingCameraPreviewTests.swift; sourceTree = "<group>"; };
+		C6CA50CE24DAE5C400A35D76 /* SemanticSegmentationCameraTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticSegmentationCameraTests.swift; sourceTree = "<group>"; };
 		C6CA50D024DAE5C400A35D76 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C6CA50D524DAE5C400A35D76 /* SemanticSegmentationCameraUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SemanticSegmentationCameraUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		C6CA50D924DAE5C400A35D76 /* SwitchingCameraPreviewUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwitchingCameraPreviewUITests.swift; sourceTree = "<group>"; };
+		C6CA50D924DAE5C400A35D76 /* SemanticSegmentationCameraUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SemanticSegmentationCameraUITests.swift; sourceTree = "<group>"; };
 		C6CA50DB24DAE5C400A35D76 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -121,7 +121,7 @@
 		C6CA50CD24DAE5C400A35D76 /* SemanticSegmentationCameraTests */ = {
 			isa = PBXGroup;
 			children = (
-				C6CA50CE24DAE5C400A35D76 /* SwitchingCameraPreviewTests.swift */,
+				C6CA50CE24DAE5C400A35D76 /* SemanticSegmentationCameraTests.swift */,
 				C6CA50D024DAE5C400A35D76 /* Info.plist */,
 			);
 			path = SemanticSegmentationCameraTests;
@@ -130,7 +130,7 @@
 		C6CA50D824DAE5C400A35D76 /* SemanticSegmentationCameraUITests */ = {
 			isa = PBXGroup;
 			children = (
-				C6CA50D924DAE5C400A35D76 /* SwitchingCameraPreviewUITests.swift */,
+				C6CA50D924DAE5C400A35D76 /* SemanticSegmentationCameraUITests.swift */,
 				C6CA50DB24DAE5C400A35D76 /* Info.plist */,
 			);
 			path = SemanticSegmentationCameraUITests;
@@ -277,7 +277,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C6CA50CF24DAE5C400A35D76 /* SwitchingCameraPreviewTests.swift in Sources */,
+				C6CA50CF24DAE5C400A35D76 /* SemanticSegmentationCameraTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -285,7 +285,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C6CA50DA24DAE5C400A35D76 /* SwitchingCameraPreviewUITests.swift in Sources */,
+				C6CA50DA24DAE5C400A35D76 /* SemanticSegmentationCameraUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
