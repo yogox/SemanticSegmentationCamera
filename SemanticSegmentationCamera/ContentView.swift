@@ -93,7 +93,7 @@ extension AVCaptureDevice.Position: CaseIterable {
 typealias CameraPosition = AVCaptureDevice.Position
 
 class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, ObservableObject {
-    @Published var matteImage: UIImage?
+    @Published var image: UIImage?
     @Published var previewLayer:[CameraPosition:AVCaptureVideoPreviewLayer] = [:]
     private var captureDevice:AVCaptureDevice!
     private var captureSession:[CameraPosition:AVCaptureSession] = [:]
@@ -196,7 +196,7 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
         // Imageクラスでも描画されるようにCGImage経由でUIImageに変換
         let context = CIContext(options: nil)
         let cgImage = context.createCGImage(photoImage, from: photoImage.extent)
-        self.matteImage = UIImage(cgImage: cgImage!)
+        self.image = UIImage(cgImage: cgImage!)
     }
 }
 
@@ -354,8 +354,8 @@ struct photoView: View {
     
     var body: some View {
         VStack {
-            if self.segmentationCamera.matteImage != nil {
-                Image(uiImage: self.segmentationCamera.matteImage!)
+            if self.segmentationCamera.image != nil {
+                Image(uiImage: self.segmentationCamera.image!)
                     .resizable()
                     .scaledToFit()
             } else {
@@ -385,7 +385,7 @@ struct TransferPhotoView: View {
             
             HStack {
                 Button(action: {
-                    self.segmentationCamera.matteImage = nil
+                    self.segmentationCamera.image = nil
                     self.selection = .none
                 }) {
                     Text("Back")
