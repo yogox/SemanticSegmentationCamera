@@ -142,6 +142,7 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
             photoOutput.isDepthDataDeliveryEnabled = photoOutput.isDepthDataDeliverySupported
             
             // SemanticSegmentationMatteの設定
+            photoOutput.isPortraitEffectsMatteDeliveryEnabled = photoOutput.isPortraitEffectsMatteDeliverySupported
             photoOutput.enabledSemanticSegmentationMatteTypes = photoOutput.availableSemanticSegmentationMatteTypes
             
         }
