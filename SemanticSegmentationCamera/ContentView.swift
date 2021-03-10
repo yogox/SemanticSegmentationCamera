@@ -232,7 +232,6 @@ struct ContentView: View {
     @State private var flipped = false
     @State private var angle:Double = 0
     @State private var selection:Views? = .none
-    @State private var start = false
     
     var body: some View {
         NavigationView {
