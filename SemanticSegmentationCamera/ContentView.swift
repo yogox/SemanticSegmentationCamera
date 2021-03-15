@@ -99,6 +99,7 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
     private var captureSession:[CameraPosition:AVCaptureSession] = [:]
     private var dataOutput:[CameraPosition:AVCapturePhotoOutput] = [:]
     private var currentCameraPosition:CameraPosition
+    private let semaphore = DispatchSemaphore(value: 0)
     
     override init() {
         currentCameraPosition = .back
@@ -190,14 +191,48 @@ class SemanticSegmentationCamera: NSObject, AVCapturePhotoCaptureDelegate, Obser
             matteFilter.teethMatteImage = teethImage
             matteFilter.alpha = 0.7
             photoImage = matteFilter.outputImage!
+
+            // 画像の向きを決め打ち修正
+            photoImage = photoImage.oriented(.right)
+            // Imageクラスでも描画されるようにCGImage経由でUIImageに変換
+            let context = CIContext(options: nil)
+            let cgImage = context.createCGImage(photoImage, from: photoImage.extent)
+            self.image = UIImage(cgImage: cgImage!)
         }
         
-        // 画像の向きを決め打ち修正
-        photoImage = photoImage.oriented(.right)
-        // Imageクラスでも描画されるようにCGImage経由でUIImageに変換
-        let context = CIContext(options: nil)
-        let cgImage = context.createCGImage(photoImage, from: photoImage.extent)
-        self.image = UIImage(cgImage: cgImage!)
+    }
+    
+    func photoOutput(_ output: AVCapturePhotoOutput,
+                     willBeginCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings) {
+        // 撮影処理中はプレビューを止める
+        stopSession()
+    }
+    
+    func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
+        error: Error?) {
+        semaphore.signal()
+    }
+    
+    func waitPhoto() {
+        semaphore.wait()
+    }
+    
+    func stopSession() {
+        if let session = captureSession[currentCameraPosition], session.isRunning == true {
+            session.stopRunning()
+        }
+    }
+
+    func restartSession() {
+        if let session = captureSession[currentCameraPosition], session.isRunning == false {
+            session.startRunning()
+        }
+    }
+
+    func clearImage() {
+        image = nil
     }
 }
 
@@ -232,7 +267,30 @@ struct ContentView: View {
     @State private var flipped = false
     @State private var angle:Double = 0
     @State private var selection:Views? = .none
-    @State private var start = false
+    // アラート表示
+    @State private var showAlert = false
+    // 撮影・処理中のボタン制御
+    @State private var buttonGuard = false
+    // プログレスバーの表示
+    @State private var inProgress = false
+
+    func enableButtonWithPreview() {
+        enableButton()
+        self.segmentationCamera.restartSession()
+    }
+
+    func disableButtonWithPreview() {
+        disableButton()
+        self.segmentationCamera.restartSession()
+    }
+    
+    func enableButton() {
+        buttonGuard = false
+    }
+
+    func disableButton() {
+        buttonGuard = true
+    }
     
     var body: some View {
         NavigationView {
@@ -262,8 +320,28 @@ struct ContentView: View {
                             Spacer()
                             
                             Button(action: {
+                                disableButton()
+                                // 前回の画像を消去
+                                self.segmentationCamera.clearImage()
+                                
                                 self.segmentationCamera.takePhoto()
-                                self.selection = .transferPhoto
+
+                                DispatchQueue.global(qos: .userInitiated).async {
+                                    inProgress = true
+
+                                    // セマフォで撮影完了を待つ
+                                    self.segmentationCamera.waitPhoto()
+                                    if self.segmentationCamera.image != nil {
+                                        // 画像が設定されている＝SemanticSegmentation完了なら画面遷移
+                                        self.selection = .transferPhoto
+                                    } else {
+                                        // SemanticSegmentationできなかったら警告
+                                        self.showAlert = true
+                                    }
+                                    
+                                    inProgress = false
+                                }
+
                             }) {
                                 Image(systemName: "camera.circle.fill")
                                     .renderingMode(.template)
@@ -272,6 +350,8 @@ struct ContentView: View {
                                     .frame(width: 75, height: 75, alignment: .center)
                                     .foregroundColor(Color.white)
                             }
+                            // ボタンを制御可能にする
+                            .disabled(buttonGuard)
                             
                             Spacer()
                             
@@ -293,10 +373,12 @@ struct ContentView: View {
                                     .frame(width: 40, height: 40, alignment: .center)
                                     .foregroundColor(Color.white)
                             }
+                            // ボタンを制御可能にする
+                            .disabled(buttonGuard)
                             
                             Spacer()
                         }
-                        NavigationLink(destination: TransferPhotoView(segmentationCamera: self.segmentationCamera, selection: self.$selection
+                        NavigationLink(destination: TransferPhotoView(segmentationCamera: self.segmentationCamera, selection: self.$selection, buttonGuard: self.$buttonGuard
                             ),
                                        tag:Views.transferPhoto,
                                        selection:self.$selection) {
@@ -308,7 +390,22 @@ struct ContentView: View {
                     }
                     .navigationBarTitle(/*@START_MENU_TOKEN@*/"Navigation Bar"/*@END_MENU_TOKEN@*/)
                     .navigationBarHidden(/*@START_MENU_TOKEN@*/true/*@END_MENU_TOKEN@*/)
+                    .alert(isPresented: $showAlert) {
+                        Alert(title: Text("Alert"),
+                              message: Text("No object with segmentation"),
+                              dismissButton: .default(Text("OK"), action: {
+                                enableButtonWithPreview()
+                              })
+                        )
+                    }
                     
+                    // 写真撮影中のプログレス表示
+                    ProgressView("Caputring Now").opacity(self.inProgress ? 1.0 : 0.0)
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .foregroundColor(.white)
+                        .scaleEffect(1.5, anchor: .center)
+                        .shadow(color: .secondary, radius: 2)
+
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
                 .background(Color.black)
@@ -370,6 +467,25 @@ struct photoView: View {
 struct TransferPhotoView: View {
     @ObservedObject var segmentationCamera: SemanticSegmentationCamera
     @Binding var selection:Views?
+    @Binding var buttonGuard:Bool
+
+    func enableButtonWithPreview() {
+        enableButton()
+        self.segmentationCamera.restartSession()
+    }
+
+    func disableButtonWithPreview() {
+        disableButton()
+        self.segmentationCamera.restartSession()
+    }
+    
+    func enableButton() {
+        buttonGuard = false
+    }
+
+    func disableButton() {
+        buttonGuard = true
+    }
     
     var body: some View {
         VStack {
@@ -386,7 +502,8 @@ struct TransferPhotoView: View {
             
             HStack {
                 Button(action: {
-                    self.segmentationCamera.image = nil
+                    self.segmentationCamera.clearImage()
+                    enableButtonWithPreview()
                     self.selection = .none
                 }) {
                     Text("Back")
