@@ -281,7 +281,7 @@ struct ContentView: View {
 
     func disableButtonWithPreview() {
         disableButton()
-        self.segmentationCamera.restartSession()
+        self.segmentationCamera.stopSession()
     }
     
     func enableButton() {
@@ -476,7 +476,7 @@ struct TransferPhotoView: View {
 
     func disableButtonWithPreview() {
         disableButton()
-        self.segmentationCamera.restartSession()
+        self.segmentationCamera.stopSession()
     }
     
     func enableButton() {
